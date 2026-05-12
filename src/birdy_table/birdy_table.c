@@ -3,8 +3,7 @@
 
 #include "table.h"
 #include "status.h"
-
-typedef struct GameCell;
+#include "game.h"
 
 typedef struct Cell {
     int key;
@@ -88,10 +87,10 @@ status_t T_rehash(Table *table) {
     new_table2 = temp;
     for (size_t i = 0; i < cycle; ++i) {
         if (new_table1[i].busy == 1) {
-            T_insert(table, new_table1[i].key, new_table1[i].info);
+            T_insert(table, new_table1[i].key, new_table1[i].cell);
         }
         if (new_table2[i].busy == 1) {
-            T_insert(table, new_table2[i].key, new_table2[i].info);
+            T_insert(table, new_table2[i].key, new_table2[i].cell);
         }
     }
     free(new_table1);
@@ -134,7 +133,7 @@ cleanup:
     return NULL;
 }
 
-status_t T_insert(Table *table, int key, char *info) {
+status_t T_insert(Table *table, int key, GameCell cell) {
     size_t ind1 = h1(key, table);
     size_t ind2 = h2(key, table);
     Cell *cur1 = table->table1 + ind1;
@@ -152,13 +151,13 @@ status_t T_insert(Table *table, int key, char *info) {
     if (cur1->busy == 0) {
         cur1->busy = 1;
         cur1->key = key;
-        cur1->info = info;
+        cur1->cell = cell;
         return SUCCESS;
     }
     if (cur2->busy == 0) {
         cur2->busy = 1;
         cur2->key = key;
-        cur2->info = info;
+        cur2->cell = cell;
         return SUCCESS;
     }
 
@@ -166,7 +165,7 @@ status_t T_insert(Table *table, int key, char *info) {
     int cycle = 50;
     int i = 0;
     int current_key = key;
-    char *current_info = info;
+    GameCell current_cell = cell;
     int table_id = 1;
     while (i < cycle) {
         Cell *current = NULL;
@@ -180,37 +179,36 @@ status_t T_insert(Table *table, int key, char *info) {
         if (current->busy == 0) {
             current->busy = 1;
             current->key = current_key;
-            current->info = current_info;
+            current->cell = current_cell;
             return SUCCESS;
         }
 
         int temp_key = current->key;
-        char *temp_info = current->info;
+        GameCell temp_cell = current->cell;
         current->key = current_key;
-        current->info = current_info;
+        current->cell = current_cell;
         current_key = temp_key;
-        current_info = temp_info;
+        current_cell = temp_cell;
 
         table_id = 3 - table_id; // 1 >> 2 ; 2 >> 1
         i++;
     }
     status_t status = T_rehash(table);
     if (status == ERR_MEM) {
-        free(current_info);
         return ERR_MEM;
     }
-    return T_insert(table, current_key, current_info);
+    return T_insert(table, current_key, current_cell);
 }
 
-char *T_get(Table *table, int key) {
+GameCell *T_get(Table *table, int key) {
     Cell *cur1 = table->table1 + h1(key, table);
     Cell *cur2 = table->table2 + h2(key, table);
 
     if (cur1->busy == 1 && cur1->key == key) {
-        return cur1->info;
+        return &cur1->cell;
     }
     if (cur2->busy == 1 && cur2->key == key) {
-        return cur2->info;
+        return &cur2->cell;
     }
     return NULL;
 }
@@ -221,14 +219,10 @@ status_t T_delete(Table *table, int key) {
 
     if (cur1->busy == 1 && cur1->key == key) {
         cur1->busy = 0;
-        free(cur1->info);
-        cur1->info = NULL;
         return SUCCESS;
     }
     if (cur2->busy == 1 && cur2->key == key) {
         cur2->busy = 0;
-        free(cur2->info);
-        cur2->info = NULL;
         return SUCCESS;
 
     }
@@ -237,20 +231,6 @@ status_t T_delete(Table *table, int key) {
 
 void T_free(Table *table) {
     if (!table) return;
-    if (table->table1 || table->table2) {
-        for (size_t i = 0; i < table->size; ++i) {
-            if (table->table1) {
-                if (table->table1[i].busy == 1) {
-                    free(table->table1[i].info);
-                }
-            }
-            if (table->table2) {
-                if (table->table2[i].busy == 1) {
-                    free(table->table2[i].info);
-                }
-            }
-        }
-    }
     free(table->table1);
     free(table->table2);
     free(table);
@@ -266,7 +246,7 @@ void T_print(Table *table) { // strong
     printf("\n|ID  |BUSY |KEY     |INFO\n");
 
     for (size_t i = 0; i < table->size; ++i) {
-        printf("|%-4llu|%-5d|%-8u|%s\n", i, table->table1[i].busy, table->table1[i].key, table->table1[i].info);
+        printf("|%-4llu|%-5d|%-8u|%d\n", i, table->table1[i].busy, table->table1[i].key, table->table1[i].cell);
     }
     printf("\n");
 
@@ -274,7 +254,7 @@ void T_print(Table *table) { // strong
     printf("\n|ID  |BUSY |KEY     |INFO\n");
 
     for (size_t i = 0; i < table->size; ++i) {
-        printf("|%-4llu|%-5d|%-8u|%s\n", i, table->table2[i].busy, table->table2[i].key, table->table2[i].info);
+        printf("|%-4llu|%-5d|%-8u|%d\n", i, table->table2[i].busy, table->table2[i].key, table->table2[i].cell);
     }
     printf("\n");
 
