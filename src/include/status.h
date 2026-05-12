@@ -9,6 +9,7 @@ typedef enum status_t {
     ERR_FULL = 3,
     ERR_VALUE = 4,
     ERR_NOT_FOUND = 5,
+    END_GAME = 6,
     ERR_MEM = 0,
 } status_t;
 

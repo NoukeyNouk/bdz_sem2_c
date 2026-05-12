@@ -13,7 +13,9 @@ status_t board_delete(Board *board, size_t key1, size_t key2);
 void board_print(Board *board);
 int board_count_mines(Board *board, size_t x, size_t y);
 int board_count_flags(Board *board, size_t x, size_t y);
-int open_near_cells(Board *board, size_t x, size_t y);
+status_t open_near_cells(Board *board, size_t x, size_t y);
+status_t board_string_handle(Board *board, const char *command);
+status_t board_command_handle(Board *board, char command);
 
 status_t game_loop(size_t x, size_t y, size_t mines) {
     status_t status = SUCCESS;
@@ -34,93 +36,38 @@ status_t game_loop(size_t x, size_t y, size_t mines) {
     board->cx = 0;
     board->cy = 0;
     board->mines = mines;
+    board->opened_cells = 0;
     board->data = T_create();
     if (!board->data) {
         status = ERR_MEM;
         goto cleanup;
     }
 
-    status = board_init(board, 0, 0);
-    if (status == ERR_MEM || status == ERR_VALUE) {
-        goto cleanup;
-    }
 
     int lose = 0;
-    ull opened_cells = 0;
-    while (!lose && opened_cells < board->x * board->y - board->mines) {
+    while (!lose && board->opened_cells < board->x * board->y - board->mines) {
         board_print(board);
-        printf("opened: %llu\n", opened_cells);
-        printf("type (wasd for moving cursor, o - open, f - flag, u - unflag)\n");
-        x = board->cx;
-        y = board->cy;
+        // printf("opened: %llu\n", board->opened_cells);
+        if (board->initialized) {
+            printf("type (wasd for moving cursor, o - open, f - flag, u - unflag)\n");
+        }
+        else {
+            printf("type (wasd for moving cursor, o - open)\n");
+        }
         
         char command[100];
         int cur = 0;
         scanf("%99s", command);
 
-
-        while (command[cur] != 0) {
-            x = board->cx;
-            y = board->cy;
-
-            cell = board_place(board, x, y);
-            switch (command[cur]) {
-                case 'q':
-                    lose = 1;
-                    break;
-                case 'o':
-                    if (cell->state == HIDDEN) {
-                        cell->state = OPENED;
-                        if (cell->is_mine) {
-                            lose = 1;
-                        }
-                        else {
-                            opened_cells++;
-                            if (cell->mines_around == 0) {
-                                opened_cells += open_near_cells(board, x, y);
-                            }
-                        }
-                    }
-                    else if (cell->state == OPENED) {
-                        int flags_cnt = board_count_flags(board, x, y);
-                        if (flags_cnt == cell->mines_around) {
-                            opened_cells += open_near_cells(board, x, y);
-                        }
-                    }
-                    break;
-                case 'f':
-                    if (cell->state == HIDDEN) {
-                        cell->state = FLAGGED;
-                    }
-                    break;
-                case 'u':
-                    if (cell->state == FLAGGED) {
-                        cell->state = HIDDEN;
-                    }
-                    break;
-                case 'w':
-                    if (board->cx > 0) {
-                        board->cx--;
-                    }
-                    break;
-                case 'a':
-                    if (board->cy > 0) {
-                        board->cy--;
-                    }
-                    break;
-                case 's':
-                    if (board->cx + 1 < board->x) {
-                        board->cx++;
-                    }
-                    break;
-                case 'd':
-                    if (board->cy + 1 < board->y) {
-                        board->cy++;
-                    }
-                    break;
-            }
-            cur++;
+        status = board_string_handle(board, command);
+        if (status == END_GAME) {
+            lose = 1;
         }
+        else if (status == ERR_MEM) {
+            printf("Out of memory\n");
+            goto cleanup;
+        }
+
     }
     if (lose) {
         printf("U LOOOSE!!\n\n");
@@ -249,7 +196,104 @@ void board_print(Board *board) {
     // printf("\n");
 }
 
-int board_count_mines(Board *board, size_t x, size_t y) {
+status_t board_string_handle(Board *board, const char *command) {
+    size_t cur = 0;
+    while (command[cur] != 0) {
+
+        status_t status = board_command_handle(board, command[cur]);
+        if (status == ERR_MEM || status == END_GAME) {
+            return status;
+        }
+        cur++;
+    }
+    return SUCCESS;
+}
+
+status_t board_command_handle(Board *board, char command) {
+    size_t x = board->cx;
+    size_t y = board->cy;
+
+    GameCell *cell = NULL;
+    if (board->initialized) {
+        cell = board_place(board, x, y);
+        if (!cell) {
+            return ERR_MEM;
+        }
+    }
+    else {
+        if (command != 'o' && command != 'w' &&
+            command != 'a' && command != 's' &&
+            command != 'd' && command != 'q') return SUCCESS;
+    }
+    status_t status = SUCCESS;
+
+    switch (command) {
+        case 'q':
+            status = END_GAME; //!!!!
+            break;
+        case 'o':
+            if (!board->initialized) {
+                board->initialized = 1;
+                status = board_init(board, board->cx, board->cy);
+                cell = board_place(board, x, y);
+                if (!cell) {
+                    return ERR_MEM;
+                }
+            }
+            if (cell->state == HIDDEN) {
+                cell->state = OPENED;
+                if (cell->is_mine) {
+                    status = END_GAME;
+                }
+                else {
+                    board->opened_cells++;
+                    if (cell->mines_around == 0) {
+                        status = open_near_cells(board, x, y);
+                    }
+                }
+            }
+            else if (cell->state == OPENED) {
+                int flags_cnt = board_count_flags(board, x, y);
+                if (flags_cnt == cell->mines_around) {
+                    status = open_near_cells(board, x, y);
+                }
+            }
+            break;
+        case 'f':
+            if (cell->state == HIDDEN) {
+                cell->state = FLAGGED;
+            }
+            break;
+        case 'u':
+            if (cell->state == FLAGGED) {
+                cell->state = HIDDEN;
+            }
+            break;
+        case 'w':
+            if (board->cx > 0) {
+                board->cx--;
+            }
+            break;
+        case 'a':
+            if (board->cy > 0) {
+                board->cy--;
+            }
+            break;
+        case 's':
+            if (board->cx + 1 < board->x) {
+                board->cx++;
+            }
+            break;
+        case 'd':
+            if (board->cy + 1 < board->y) {
+                board->cy++;
+            }
+            break;
+    }
+    return status;
+}
+
+int board_count_mines(Board *board, size_t x, size_t y) { // strong
     int cnt = 0;
     GameCell *cell = NULL;
     for (int i = -1; i < 2; ++i) {
@@ -268,7 +312,7 @@ int board_count_mines(Board *board, size_t x, size_t y) {
     return cnt;
 }
 
-int board_count_flags(Board *board, size_t x, size_t y) {
+int board_count_flags(Board *board, size_t x, size_t y) { // strong
     int cnt = 0;
     GameCell *cell = NULL;
     for (int i = -1; i < 2; ++i) {
@@ -287,9 +331,13 @@ int board_count_flags(Board *board, size_t x, size_t y) {
     return cnt;
 }
 
-int open_near_cells(Board *board, size_t x, size_t y) {
-    int opened_cells = 0;
+status_t open_near_cells(Board *board, size_t x, size_t y) {
     unsigned int (*queue)[2] = calloc(board->x * board->y, sizeof(*queue));
+    if (!queue) {
+        return ERR_MEM;
+    }
+
+    status_t status = SUCCESS;
     GameCell *cell = NULL;
     size_t tail = 0, head = 0;
     queue[tail][0] = x;
@@ -309,10 +357,18 @@ int open_near_cells(Board *board, size_t x, size_t y) {
                 if (j == 1 && y == board->y - 1) continue;
 
                 cell = board_place(board, x + i, y + j);
+                if (!cell) {
+                    status = ERR_MEM;
+                    goto cleanup;
+                }
 
                 if (cell->state == HIDDEN) {
                     cell->state = OPENED;
-                    opened_cells++;
+                    board->opened_cells++;
+                    if (cell->is_mine) {
+                        status = END_GAME;
+                        goto cleanup;
+                    }
                     if (cell->mines_around == 0) {
                         queue[tail][0] = x + i;
                         queue[tail++][1] = y + j;
@@ -321,6 +377,8 @@ int open_near_cells(Board *board, size_t x, size_t y) {
             }
         }
     }
+
+cleanup:
     free(queue);
-    return opened_cells;
+    return status;
 }

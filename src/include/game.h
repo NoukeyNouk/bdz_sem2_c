@@ -23,6 +23,8 @@ typedef struct Board {
     size_t cy;
     Table *data;
     size_t mines;
+    ull opened_cells;
+    int initialized;
 } Board;
 
 status_t game_loop(size_t x, size_t y, size_t mines);
