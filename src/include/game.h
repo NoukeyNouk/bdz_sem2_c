@@ -19,6 +19,8 @@ typedef struct GameCell {
 typedef struct Board {
     size_t x;
     size_t y;
+    size_t cx;
+    size_t cy;
     Table *data;
     size_t mines;
 } Board;
