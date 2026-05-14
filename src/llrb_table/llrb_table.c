@@ -29,9 +29,15 @@ typedef struct Table {
 Node *rough_insert(Node *node, int key, GameCell cell, Node *elist);
 void rough_free(Node *node, Node *elist);
 Node *balance(Node *node);
+void swap_colors(Node *current);
+Node *delete_min(Node *current, Node *elist);
+Node *delete_node(Node *current, int key, Node *elist);
 Node *rotate_left(Node *current);
 Node *rotate_right(Node *current);
-void swap_colors(Node *current);
+Node* move_red_left(Node* current);
+Node* move_red_right(Node* current);
+Node* find_min(Node* current, Node *elist);
+
 
 
 Table *T_create() {
@@ -97,28 +103,6 @@ GameCell *T_insert(Table *table, int key, GameCell cell) {
     return T_get(table, key);
 }
 
-
-void T_free(Table *table) {
-    rough_free(table->root, table->elist);
-    free(table->elist);
-    free(table);
-}
-
-status_t T_delete(Table *table, int key) {
-    //to be announced
-    return SUCCESS;
-}
-
-void rough_free(Node *node, Node *elist) {
-    if (node == elist) {
-        return;
-    }
-    rough_free(node->left, elist);
-    rough_free(node->right, elist);
-    free(node);
-}
-
-
 Node *rough_insert(Node *node, int key, GameCell cell, Node *elist) {
     if (node == elist) {
         return create_node(key, cell, RED, elist);
@@ -146,6 +130,86 @@ Node *rough_insert(Node *node, int key, GameCell cell, Node *elist) {
 }
 
 
+void T_free(Table *table) {
+    rough_free(table->root, table->elist);
+    free(table->elist);
+    free(table);
+}
+
+void rough_free(Node *node, Node *elist) {
+    if (node == elist) {
+        return;
+    }
+    rough_free(node->left, elist);
+    rough_free(node->right, elist);
+    free(node);
+}
+
+status_t T_delete(Table *table, int key) {
+    if (table->root == table->elist) return SUCCESS;
+
+    if (table->root->left->color == BLACK && table->root->right == BLACK) {
+        table->root->color = RED;
+    }
+
+    table->root = delete_node(table->root, key, table->elist);
+
+    if (table->root != table->elist) {
+        table->root->color = BLACK;
+    }
+}
+
+Node *delete_min(Node *current, Node *elist) {
+    if (current->left == elist) {
+        free(current);
+        return elist;
+    }
+
+    if (current->left->color == BLACK && current->left->left->color == BLACK) {
+        current = move_red_left(current);
+    }
+
+    current->left = delete_min(current->left, elist);
+
+    return balance(current);
+}
+
+Node *delete_node(Node *current, int key, Node *elist) {
+    if (key < current->key) {
+        if (current->left->color == BLACK && current->left->left->color == BLACK) {
+            current = move_red_left(current);
+        }
+        current->left = delete_node(current->left, key, elist);
+    } 
+    else {
+        if (current->left->color == RED) {
+            current = rotate_right(current);
+        }
+
+        if (key == current->key && current->right == elist) {
+            free(current);
+            return elist;
+        }
+
+        if (current->right->color == BLACK && current->right->left->color == BLACK) {
+            current = move_red_right(current);
+        }
+
+        if (key == current->key) {
+            Node *neighbour = find_min(current->right, elist);
+
+            current->key = neighbour->key;
+
+            current->right = delete_min(current->right, elist);
+        } 
+        else {
+            current->right = delete_node(current->right, key, elist);
+        }
+    }
+    return balance(current);
+}
+
+
 Node *balance(Node *node) {
     if (node->left->color == BLACK && node->right->color == RED) {
         node = rotate_left(node);
@@ -158,6 +222,7 @@ Node *balance(Node *node) {
     }
     return node;
 }
+
 
 Node *rotate_left(Node *current) {
     Node *a = current->left;
@@ -173,6 +238,7 @@ Node *rotate_left(Node *current) {
 
     return new_current;
 }
+
 
 Node *rotate_right(Node *current) {
     Node *a = current->left->left;
