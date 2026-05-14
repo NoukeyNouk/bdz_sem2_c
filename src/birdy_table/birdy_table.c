@@ -1,3 +1,6 @@
+#ifndef TREE_IMPL
+
+
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -133,7 +136,7 @@ cleanup:
     return NULL;
 }
 
-status_t T_insert(Table *table, int key, GameCell cell) {
+GameCell *T_insert(Table *table, int key, GameCell cell) {
     size_t ind1 = h1(key, table);
     size_t ind2 = h2(key, table);
     Cell *cur1 = table->table1 + ind1;
@@ -141,10 +144,10 @@ status_t T_insert(Table *table, int key, GameCell cell) {
 
     //trying to find the key
     if (cur1->busy == 1 && cur1->key == key) {
-        return ERR_VALUE;
+        return &cur1->cell;
     }
     if (cur2->busy == 1 && cur2->key == key) {
-        return ERR_VALUE;
+        return &cur2->cell;
     }
 
     //inserting if there's some space
@@ -152,13 +155,13 @@ status_t T_insert(Table *table, int key, GameCell cell) {
         cur1->busy = 1;
         cur1->key = key;
         cur1->cell = cell;
-        return SUCCESS;
+        return &cur1->cell;
     }
     if (cur2->busy == 0) {
         cur2->busy = 1;
         cur2->key = key;
         cur2->cell = cell;
-        return SUCCESS;
+        return &cur2->cell;
     }
 
     // if there's no space summoning bird
@@ -167,6 +170,7 @@ status_t T_insert(Table *table, int key, GameCell cell) {
     int current_key = key;
     GameCell current_cell = cell;
     int table_id = 1;
+
     while (i < cycle) {
         Cell *current = NULL;
         if (table_id == 1) {
@@ -180,7 +184,10 @@ status_t T_insert(Table *table, int key, GameCell cell) {
             current->busy = 1;
             current->key = current_key;
             current->cell = current_cell;
-            return SUCCESS;
+            if (i == 0) {
+                return &current->cell;
+            }
+            return T_get(table, key);
         }
 
         int temp_key = current->key;
@@ -195,9 +202,9 @@ status_t T_insert(Table *table, int key, GameCell cell) {
     }
     status_t status = T_rehash(table);
     if (status == ERR_MEM) {
-        return ERR_MEM;
+        return NULL;
     }
-    return T_insert(table, current_key, current_cell);
+    return T_get(table, key);
 }
 
 GameCell *T_get(Table *table, int key) {
@@ -260,3 +267,4 @@ void T_print(Table *table) { // strong
 
 }
 
+#endif

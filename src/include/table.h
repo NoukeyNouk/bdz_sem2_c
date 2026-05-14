@@ -13,7 +13,7 @@ typedef struct Table Table;
 typedef struct GameCell GameCell;
 
 Table *T_create();
-status_t T_insert(Table *table, int key, GameCell cell);
+GameCell *T_insert(Table *table, int key, GameCell cell);
 GameCell *T_get(Table *table, int key);
 status_t T_delete(Table *table, int key);
 void T_print(Table *table);

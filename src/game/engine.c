@@ -6,7 +6,7 @@
 
 // status_t board_init(Board *board);
 status_t board_init(Board *board, size_t safe_x, size_t safe_y);
-status_t board_insert(Board *board, size_t key1, size_t key2, GameCell cell);
+GameCell *board_insert(Board *board, size_t key1, size_t key2, GameCell cell);
 GameCell *board_get(Board *board, size_t key1, size_t key2);
 GameCell *board_place(Board *board, size_t x, size_t y);
 status_t board_delete(Board *board, size_t key1, size_t key2);
@@ -110,10 +110,10 @@ status_t board_init(Board *board, size_t safe_x, size_t safe_y) {
     return SUCCESS;
 }
 
-status_t board_insert(Board *board, size_t key1, size_t key2, GameCell cell) {
+GameCell *board_insert(Board *board, size_t key1, size_t key2, GameCell cell) {
     if (key1 >= 65535 || key2 >= 65535) {
         printf("ERROR: x or y >= 65535\n");
-        return ERR_VALUE;
+        return NULL;
     }
     int key = (key1 << 16) + key2;
     return T_insert(board->data, key, cell);
@@ -132,11 +132,10 @@ GameCell *board_place(Board *board, size_t x, size_t y) {
     GameCell *cell = board_get(board, x, y);
     if (!cell) {
         int mines_cnt = board_count_mines(board, x, y);
-        board_insert(board, x, y, (GameCell){
+        cell = board_insert(board, x, y, (GameCell){
             .is_mine = 0,
             .mines_around = mines_cnt, // TODO
             .state = HIDDEN});
-        cell = board_get(board, x, y);
     }
     return cell;
 }
