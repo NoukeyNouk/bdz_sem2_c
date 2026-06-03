@@ -204,6 +204,7 @@ GameCell *T_insert(Table *table, int key, GameCell cell) {
     if (status == ERR_MEM) {
         return NULL;
     }
+    T_insert(table, key, cell);
     return T_get(table, key);
 }
 
